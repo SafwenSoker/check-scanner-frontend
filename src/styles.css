@@ -1,1 +1,102 @@
-/* You can add global styles to this file, and also import other style files */
+/* PrimeNG Theme */
+@import 'primeng/resources/themes/saga-blue/theme.css';
+@import 'primeng/resources/primeng.min.css';
+@import 'primeicons/primeicons.css';
+
+/* Global Styles */
+:root {
+  --primary-color: #2196F3;
+  --secondary-color: #64B5F6;
+  --success-color: #4CAF50;
+  --warning-color: #FFC107;
+  --danger-color: #F44336;
+  --background-color: #f5f5f5;
+  --card-background: #ffffff;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+}
+
+body {
+  background-color: var(--background-color);
+  color: var(--text-primary);
+  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+/* Custom Card Styles */
+.card {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Button Styles */
+.p-button {
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.p-button:hover {
+  transform: translateY(-2px);
+}
+
+/* Table Styles */
+.p-datatable {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.p-datatable thead th {
+  background-color: var(--card-background);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Toast Styles */
+.p-toast {
+  top: 2rem !important;
+  right: 2rem !important;
+}
+
+.p-toast-message {
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* File Upload Styles */
+.p-fileupload {
+  border: 2px dashed var(--primary-color);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.p-fileupload:hover {
+  border-color: var(--secondary-color);
+  background-color: rgba(33, 150, 243, 0.05);
+}
+
+/* Loading Spinner */
+.p-progressspinner {
+  width: 50px !important;
+  height: 50px !important;
+}

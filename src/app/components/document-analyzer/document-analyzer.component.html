@@ -1,0 +1,192 @@
+<div class="app-container">
+  <!-- En-tête avec effet de verre -->
+  <header class="glass-header">
+    <div class="container">
+      <div class="header-content">
+        <div class="logo-title-container">
+          <div class="logo-container">
+            <i class="pi pi-file-pdf"></i>
+          </div>
+          <h1 class="app-title">Analyseur de Documents Bancaires</h1>
+        </div>
+        <div class="upload-container">
+          <p-fileUpload
+            mode="advanced"
+            chooseLabel="Parcourir"
+            uploadLabel="Ajouter"
+            cancelLabel="Annuler"
+            chooseIcon="pi pi-plus"
+            uploadIcon="pi pi-upload"
+            cancelIcon="pi pi-times"
+            styleClass="modern-upload"
+            [multiple]="true"
+            [showUploadButton]="false"
+            [showCancelButton]="true"
+            [accept]="'.jpg,.jpeg,.png,.pdf'"
+            (select)="onFileSelect($event)"
+            (remove)="onFileRemove($event)">
+            <ng-template pTemplate="content">
+              <div class="upload-status" *ngIf="selectedFiles && selectedFiles.length > 0">
+                <p>{{selectedFiles.length}} fichier(s) sélectionné(s)</p>
+              </div>
+            </ng-template>
+          </p-fileUpload>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Contenu principal -->
+  <main class="main-content">
+    <!-- Zone de drop et d'analyse -->
+    <div class="drop-zone-container" [class.active]="selectedFile" [class.uploading]="loading">
+      <div class="drop-area" *ngIf="selectedFiles.length === 0" 
+           (dragover)="onDragOver($event)" 
+           (dragleave)="onDragLeave($event)" 
+           (drop)="onDrop($event)">
+        <div class="upload-icon-container">
+          <i class="pi pi-cloud-upload"></i>
+        </div>
+        <h3 class="mb-2">Déposez vos fichiers ici</h3>
+        <p class="text-center text-600 mb-0">ou utilisez le bouton <span class="text-primary font-medium">Parcourir</span></p>
+        <div class="format-badges mt-4">
+          <span class="format-badge">JPG</span>
+          <span class="format-badge">JPEG</span>
+          <span class="format-badge">PNG</span>
+          <span class="format-badge">PDF</span>
+        </div>
+        <!-- Zone invisible pour capter les événements de glisser-déposer -->
+        <input type="file" multiple class="file-input" (change)="onFileSelect($event)" [accept]="'.jpg,.jpeg,.png,.pdf'" #fileInputRef>
+      </div>
+      
+      <!-- Zone de glisser-déposer toujours active pour ajouter d'autres fichiers -->
+      <div class="drop-overlay" *ngIf="selectedFiles.length > 0" 
+           (dragover)="onDragOver($event)" 
+           (dragleave)="onDragLeave($event)" 
+           (drop)="onDrop($event)">
+      </div>
+      
+      <div class="file-selected-container py-4 px-6" *ngIf="selectedFiles.length > 0 && !loading">
+        <div class="files-header mb-4">
+          <h3>Fichiers sélectionnés ({{selectedFiles.length}})</h3>
+          <div class="file-actions">
+            <button pButton type="button" icon="pi pi-plus" label="Ajouter" class="p-button-outlined mr-2" (click)="openFileInput()"></button>
+            <button pButton type="button" icon="pi pi-trash" label="Tout supprimer" class="p-button-outlined p-button-danger" (click)="clearAllFiles()"></button>
+          </div>
+        </div>
+        
+        <div class="files-grid mb-4">
+          <div class="file-card" *ngFor="let file of selectedFiles; let i = index" (click)="selectFile(i)" [class.active]="selectedFile === file">
+            <div class="file-card-preview">
+              <!-- Aperçu pour les images -->
+              <img *ngIf="isImageFile(file.name)" [src]="getFilePreviewForCard(file)" alt="Preview" class="file-thumbnail">
+              <!-- Icône pour les PDF -->
+              <div *ngIf="file.name.toLowerCase().endsWith('.pdf')" class="pdf-icon-container">
+                <i class="pi pi-file-pdf"></i>
+              </div>
+            </div>
+            <div class="file-card-details">
+              <span class="file-name">{{file.name}}</span>
+              <span class="file-size">{{formatFileSize(file.size)}}</span>
+            </div>
+            <button pButton type="button" icon="pi pi-times" class="p-button-rounded p-button-text p-button-danger file-remove-btn" (click)="removeFile(i); $event.stopPropagation();"></button>
+          </div>
+        </div>
+        
+        <div class="file-preview" *ngIf="selectedFile">
+          <div class="divider my-4"></div>
+          <h4 class="mb-3">Aperçu du fichier sélectionné</h4>
+          <img *ngIf="selectedFile.type.includes('image')" [src]="getFilePreviewUrl()" alt="Preview" class="preview-image">
+          <div *ngIf="selectedFile.type.includes('pdf')" class="pdf-preview">
+            <i class="pi pi-file-pdf"></i>
+            <p>Aperçu PDF non disponible</p>
+          </div>
+        </div>
+        
+        <div class="action-buttons mt-4">
+          <button pButton type="button" icon="pi pi-search" label="Analyser" class="p-button-primary" (click)="analyzeDocument()"></button>
+        </div>
+      </div>
+
+      <!-- Barre de progression -->
+      <div class="progress-container py-6 px-4" *ngIf="loading">
+        <h3 class="text-center mb-4">Analyse en cours...</h3>
+        <p-progressBar [value]="progress" [showValue]="false" styleClass="modern-progress"></p-progressBar>
+        <p class="text-center mt-3">{{progress}}% terminé</p>
+      </div>
+    </div>
+
+    <!-- Section des résultats (si disponible) -->
+    <div class="results-container" *ngIf="analysisResult">
+      <div class="section-header">
+        <h2>Résultats de l'analyse</h2>
+        <span class="badge" [ngClass]="{'badge-info': analysisResult.type === 'cheque', 'badge-success': analysisResult.type === 'versement'}">{{analysisResult.type | titlecase}}</span>
+      </div>
+      <div class="results-content">
+        <div class="grid">
+          <div class="col-12 md:col-6" *ngFor="let key of objectKeys(analysisResult.data)">
+            <div class="result-item">
+              <span class="result-label">{{key | titlecase}}</span>
+              <span class="result-value">{{analysisResult.data[key]}}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Historique des analyses -->
+    <div class="history-container">
+      <div class="section-header">
+        <h2>Historique des Analyses</h2>
+        <span class="text-600">{{history.length}} analyses</span>
+      </div>
+      <p-table 
+        [value]="history" 
+        [rows]="5" 
+        [paginator]="true" 
+        styleClass="modern-table"
+        [rowHover]="true"
+        responsiveLayout="scroll">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Date</th>
+            <th>Nom du fichier</th>
+            <th>Type</th>
+            <th>Confiance</th>
+            <th>Actions</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-analysis>
+          <tr>
+            <td>{{analysis.analysisDate | date:'medium'}}</td>
+            <td>{{analysis.fileName}}</td>
+            <td>
+              <span class="badge" [ngClass]="{'badge-info': analysis.type === 'cheque', 'badge-success': analysis.type === 'versement'}">{{analysis.type | titlecase}}</span>
+            </td>
+            <td>{{analysis.confidence * 100 | number:'1.0-2'}}%</td>
+            <td>
+              <button pButton
+                      type="button"
+                      icon="pi pi-download"
+                      class="p-button-rounded p-button-text"
+                      pTooltip="Télécharger"
+                      tooltipPosition="top"
+                      (click)="downloadAnalysis(analysis)">
+              </button>
+            </td>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="5" class="text-center p-5">
+              <div class="flex flex-column align-items-center">
+                <i class="pi pi-inbox text-3xl text-500 mb-3"></i>
+                <p class="text-500">Aucune analyse disponible</p>
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+  </main>
+</div>
