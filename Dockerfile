@@ -41,9 +41,6 @@ COPY supervisord.conf /etc/supervisord.conf
 # Expose port 3000 for the Express server (frontend)
 EXPOSE 3000
 
-# Expose port 3001 for the JSON server
-EXPOSE 3001
-
 # Install supervisor
 RUN apk add --no-cache supervisor
 
