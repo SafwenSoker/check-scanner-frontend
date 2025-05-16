@@ -25,10 +25,9 @@ LABEL description="fix: added the possibility to show dashboard from either graf
 
 # Set the working directory in the container
 WORKDIR /usr/src/app
-
 # Copy built Angular app from the 'build' stage
-COPY --from=build /usr/src/app/dist/app /usr/src/app/dist
-COPY --from=build /usr/src/app/.env /usr/src/app/.env
+COPY --from=build /usr/src/app/dist/check-scanner /usr/src/app/dist
+# COPY --from=build /usr/src/app/.env /usr/src/app/.env/
 
 # Install express server and json-server
 RUN npm install express --save
