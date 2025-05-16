@@ -31,7 +31,7 @@ COPY --from=build /usr/src/app/dist/check-scanner /usr/src/app/dist
 
 # Install express server and json-server
 RUN npm install express --save
-RUN npm install -g json-server --save
+
 
 # Copy custom server file and supervisord configuration
 
