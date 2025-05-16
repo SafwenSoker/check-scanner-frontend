@@ -35,7 +35,7 @@ RUN npm install express --save
 RUN npm install -g json-server --save
 
 # Copy custom server file and supervisord configuration
-COPY server.js db.json ./
+
 COPY supervisord.conf /etc/supervisord.conf
 
 # Expose port 3000 for the Express server (frontend)
