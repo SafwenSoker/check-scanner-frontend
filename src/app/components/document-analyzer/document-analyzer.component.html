@@ -19,6 +19,8 @@
             uploadIcon="pi pi-upload"
             cancelIcon="pi pi-times"
             styleClass="modern-upload"
+            chooseStyleClass="p-button-primary"
+            cancelStyleClass="p-button-danger"
             [multiple]="true"
             [showUploadButton]="false"
             [showCancelButton]="true"
@@ -40,7 +42,8 @@
   <main class="main-content">
     <!-- Zone de drop et d'analyse -->
     <div class="drop-zone-container" [class.active]="selectedFile" [class.uploading]="loading">
-      <div class="drop-area" *ngIf="selectedFiles.length === 0" 
+      <!-- Zone de dépôt initiale (visible seulement quand aucun fichier n'est sélectionné) -->
+      <div class="drop-area" *ngIf="!selectedFiles || selectedFiles.length === 0" 
            (dragover)="onDragOver($event)" 
            (dragleave)="onDragLeave($event)" 
            (drop)="onDrop($event)">
@@ -59,51 +62,94 @@
         <input type="file" multiple class="file-input" (change)="onFileSelect($event)" [accept]="'.jpg,.jpeg,.png,.pdf'" #fileInputRef>
       </div>
       
-      <!-- Zone de glisser-déposer toujours active pour ajouter d'autres fichiers -->
-      <div class="drop-overlay" *ngIf="selectedFiles.length > 0" 
+      <!-- Zone de glisser-déposer pour ajouter d'autres fichiers (visible seulement pendant le drag) -->
+      <div class="drop-overlay" *ngIf="isDragging" 
            (dragover)="onDragOver($event)" 
            (dragleave)="onDragLeave($event)" 
            (drop)="onDrop($event)">
       </div>
       
-      <div class="file-selected-container py-4 px-6" *ngIf="selectedFiles.length > 0 && !loading">
-        <div class="files-header mb-4">
+      <!-- Container pour les fichiers sélectionnés (visible quand des fichiers sont sélectionnés) -->
+      <div class="file-selected-container" *ngIf="selectedFiles && selectedFiles.length > 0 && !loading">
+        <div class="files-header">
           <h3>Fichiers sélectionnés ({{selectedFiles.length}})</h3>
           <div class="file-actions">
-            <button pButton type="button" icon="pi pi-plus" label="Ajouter" class="p-button-outlined mr-2" (click)="openFileInput()"></button>
-            <button pButton type="button" icon="pi pi-trash" label="Tout supprimer" class="p-button-outlined p-button-danger" (click)="clearAllFiles()"></button>
+            <button pButton type="button" icon="pi pi-plus" label="Ajouter" class="p-button-primary" (click)="openFileInput()"></button>
+            <button pButton type="button" icon="pi pi-trash" label="Tout supprimer" class="p-button-danger" (click)="clearAllFiles()"></button>
           </div>
         </div>
         
-        <div class="files-grid mb-4">
-          <div class="file-card" *ngFor="let file of selectedFiles; let i = index" (click)="selectFile(i)" [class.active]="selectedFile === file">
-            <div class="file-card-preview">
-              <!-- Aperçu pour les images -->
-              <img *ngIf="isImageFile(file.name)" [src]="getFilePreviewForCard(file)" alt="Preview" class="file-thumbnail">
-              <!-- Icône pour les PDF -->
-              <div *ngIf="file.name.toLowerCase().endsWith('.pdf')" class="pdf-icon-container">
+        <div class="files-table-container">
+          <table class="files-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1px solid #e9ecef; text-align: left;">
+                <th style="padding: 10px; width: 50px;">Type</th>
+                <th style="padding: 10px;">Nom du fichier</th>
+                <th style="padding: 10px; width: 100px;">Taille</th>
+                <th style="padding: 10px; width: 80px; text-align: center;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let file of selectedFiles; let i = index" 
+                  (click)="selectFile(i)" 
+                  [class.active-row]="selectedFile === file"
+                  style="cursor: pointer; transition: background-color 0.2s ease;">
+                <!-- File icon column -->
+                <td style="padding: 10px; text-align: center;">
+                  <i *ngIf="isImageFile(file.name)" class="pi pi-image" style="font-size: 1.5rem; color: var(--primary-color);"></i>
+                  <i *ngIf="file.name.toLowerCase().endsWith('.pdf')" class="pi pi-file-pdf" style="font-size: 1.5rem; color: var(--primary-color);"></i>
+                </td>
+                
+                <!-- File name column -->
+                <td style="padding: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px;">
+                  {{file.name}}
+                </td>
+                
+                <!-- File size column -->
+                <td style="padding: 10px; white-space: nowrap;">
+                  {{formatFileSize(file.size)}}
+                </td>
+                
+                <!-- Actions column -->
+                <td style="padding: 10px; text-align: center;">
+                  <button pButton type="button" icon="pi pi-times" class="p-button-danger"
+                          (click)="removeFile(i); $event.stopPropagation();"></button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- File preview section - Simplified implementation -->
+        <div class="file-preview-section" *ngIf="selectedFile">
+          <div class="preview-header">
+            <h4>Aperçu du fichier sélectionné: {{selectedFile.name}}</h4>
+          </div>
+          <div class="preview-content">
+            
+            <!-- Image preview -->
+            <div *ngIf="isImageFile(selectedFile.name)" class="image-preview-container">
+              <p>Attempting to display image directly...</p>
+              <!-- Use the direct method to get the image URL -->
+              <img [attr.src]="getImageUrl()" [alt]="selectedFile.name" class="preview-image">
+            </div>
+            
+            <!-- PDF preview -->
+            <div *ngIf="selectedFile.type.includes('pdf')" class="pdf-preview">
+              <div *ngIf="!getPdfObjectUrl()" class="pdf-loading">
                 <i class="pi pi-file-pdf"></i>
+                <p>Chargement du PDF en cours...</p>
+              </div>
+              
+              <!-- Simple iframe-based PDF viewer -->
+              <div *ngIf="getPdfObjectUrl()" class="pdf-container">
+                <iframe [src]="getPdfObjectUrl() | safe" width="100%" height="100%" frameborder="0"></iframe>
               </div>
             </div>
-            <div class="file-card-details">
-              <span class="file-name">{{file.name}}</span>
-              <span class="file-size">{{formatFileSize(file.size)}}</span>
-            </div>
-            <button pButton type="button" icon="pi pi-times" class="p-button-rounded p-button-text p-button-danger file-remove-btn" (click)="removeFile(i); $event.stopPropagation();"></button>
           </div>
         </div>
         
-        <div class="file-preview" *ngIf="selectedFile">
-          <div class="divider my-4"></div>
-          <h4 class="mb-3">Aperçu du fichier sélectionné</h4>
-          <img *ngIf="selectedFile.type.includes('image')" [src]="getFilePreviewUrl()" alt="Preview" class="preview-image">
-          <div *ngIf="selectedFile.type.includes('pdf')" class="pdf-preview">
-            <i class="pi pi-file-pdf"></i>
-            <p>Aperçu PDF non disponible</p>
-          </div>
-        </div>
-        
-        <div class="action-buttons mt-4">
+        <div class="action-buttons">
           <button pButton type="button" icon="pi pi-search" label="Analyser" class="p-button-primary" (click)="analyzeDocument()"></button>
         </div>
       </div>

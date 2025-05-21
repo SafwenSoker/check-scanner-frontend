@@ -13,10 +13,17 @@ import { CardModule } from 'primeng/card';
 import { ButtonModule } from 'primeng/button';
 import { MessageService } from 'primeng/api';
 
+// PDF Viewer
+import { PdfViewerModule } from 'ng2-pdf-viewer';
+
+// Pipes
+import { SafePipe } from './pipes/safe.pipe';
+
 @NgModule({
   declarations: [
     AppComponent,
-    DocumentAnalyzerComponent
+    DocumentAnalyzerComponent,
+    SafePipe
   ],
   imports: [
     BrowserModule,
@@ -26,7 +33,8 @@ import { MessageService } from 'primeng/api';
     TableModule,
     CardModule,
     ButtonModule,
-    SharedModule
+    SharedModule,
+    PdfViewerModule
   ],
   providers: [MessageService],
   bootstrap: [AppComponent]

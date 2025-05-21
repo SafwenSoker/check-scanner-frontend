@@ -1,4 +1,5 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, ChangeDetectorRef, NgZone } from '@angular/core';
+import { DomSanitizer, SafeUrl, SafeResourceUrl } from '@angular/platform-browser';
 import { DocumentAnalysisService } from '../../services/document-analysis.service';
 import { DocumentAnalysis } from '../../models/document.model';
 import { MessageService } from 'primeng/api';
@@ -28,12 +29,20 @@ export class DocumentAnalyzerComponent implements OnInit, OnDestroy {
   loading = false;
   progress = 0;
   history: DocumentAnalysis[] = [];
+  isDragging = false;
+  pdfSrc: string | Uint8Array | { url: string } | undefined;
+  filePreviewUrl: SafeUrl = '';
+  imagePreviewUrl: string = '';
+  private objectUrls: string[] = [];
   private progressSubscription: Subscription | undefined;
   private toast: any;
 
   constructor(
     private documentService: DocumentAnalysisService,
-    private messageService: MessageService
+    private messageService: MessageService,
+    private sanitizer: DomSanitizer,
+    private cdr: ChangeDetectorRef,
+    private ngZone: NgZone
   ) { }
 
   ngOnInit(): void {
@@ -75,18 +84,37 @@ export class DocumentAnalyzerComponent implements OnInit, OnDestroy {
   }
 
   onFileSelect(event: any): void {
-    if (event.files && event.files.length > 0) {
-      // Pour l'upload avancé avec multiple=true
-      this.selectedFiles = [...this.selectedFiles, ...event.files];
-      // Garder le premier fichier comme fichier sélectionné pour la compatibilité
-      this.selectedFile = this.selectedFiles.length > 0 ? this.selectedFiles[0] : null;
-    } else if (event.target && event.target.files && event.target.files.length > 0) {
-      // Pour l'input file standard
-      const newFiles = Array.from(event.target.files) as File[];
-      this.selectedFiles = [...this.selectedFiles, ...newFiles];
-      this.selectedFile = this.selectedFiles.length > 0 ? this.selectedFiles[0] : null;
+    try {
+      if (event.files && event.files.length > 0) {
+        console.log("Processing p-fileUpload files");
+        // Pour l'upload avancé avec multiple=true
+        this.selectedFiles = [...this.selectedFiles, ...event.files];
+      } else if (event.target && event.target.files && event.target.files.length > 0) {
+        console.log("Processing standard input files");
+        // Pour l'input file standard
+        const newFiles = Array.from(event.target.files) as File[];
+        this.selectedFiles = [...this.selectedFiles, ...newFiles];
+      }
+      
+      // Toujours mettre à jour le fichier sélectionné après avoir ajouté des fichiers
+      if (this.selectedFiles.length > 0) {
+        this.selectedFile = this.selectedFiles[0];
+        console.log("Selected files:", this.selectedFiles.length, "Selected file:", this.selectedFile.name);
+        
+        // Handle PDF preview if the selected file is a PDF
+        if (this.selectedFile.type.includes('pdf')) {
+          this.loadPdfPreview(this.selectedFile);
+        } else {
+          // Reset PDF source if not a PDF file
+          this.pdfSrc = undefined;
+        }
+        
+        this.showInfoToast('Fichier(s) sélectionné(s) avec succès');
+      }
+    } catch (error) {
+      console.error("Error in onFileSelect:", error);
+      this.showErrorToast('Erreur lors de la sélection des fichiers');
     }
-    this.showInfoToast('Fichier(s) sélectionné(s) avec succès');
   }
   
   onFileRemove(event: any): void {
@@ -101,6 +129,7 @@ export class DocumentAnalyzerComponent implements OnInit, OnDestroy {
   onDragOver(event: DragEvent): void {
     event.preventDefault();
     event.stopPropagation();
+    this.isDragging = true;
     const dropZone = document.querySelector('.drop-zone-container');
     if (dropZone) {
       dropZone.classList.add('active');
@@ -110,6 +139,7 @@ export class DocumentAnalyzerComponent implements OnInit, OnDestroy {
   onDragLeave(event: DragEvent): void {
     event.preventDefault();
     event.stopPropagation();
+    this.isDragging = false;
     const dropZone = document.querySelector('.drop-zone-container');
     if (dropZone) {
       dropZone.classList.remove('active');
@@ -119,6 +149,7 @@ export class DocumentAnalyzerComponent implements OnInit, OnDestroy {
   onDrop(event: DragEvent): void {
     event.preventDefault();
     event.stopPropagation();
+    this.isDragging = false;
     const dropZone = document.querySelector('.drop-zone-container');
     if (dropZone) {
       dropZone.classList.remove('active');
@@ -150,6 +181,14 @@ export class DocumentAnalyzerComponent implements OnInit, OnDestroy {
         // Mettre à jour le fichier sélectionné pour l'affichage
         this.selectedFile = this.selectedFiles.length > 0 ? this.selectedFiles[0] : null;
         
+        // Handle PDF preview if the selected file is a PDF
+        if (this.selectedFile && this.selectedFile.type.includes('pdf')) {
+          this.loadPdfPreview(this.selectedFile);
+        } else {
+          // Reset PDF source if not a PDF file
+          this.pdfSrc = undefined;
+        }
+        
         // Afficher un message de succès
         this.showInfoToast(`${validFiles.length} fichier(s) ajouté(s) avec succès`);
       } else {
@@ -164,6 +203,40 @@ export class DocumentAnalyzerComponent implements OnInit, OnDestroy {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+  
+  // Simple method to get direct image URL for display
+  getImageUrl(): string {
+    if (!this.selectedFile || !this.isImageFile(this.selectedFile.name)) {
+      return '';
+    }
+    
+    try {
+      // Create a new URL for the image file
+      return URL.createObjectURL(this.selectedFile);
+    } catch (error) {
+      console.error('Error creating image URL:', error);
+      return '';
+    }
+  }
+  
+  // Method to get a direct object URL for PDF files
+  getPdfObjectUrl(): SafeResourceUrl | null {
+    if (!this.selectedFile || !this.selectedFile.type.includes('pdf')) {
+      return null;
+    }
+    
+    try {
+      // Create a new URL for the PDF file
+      const objectUrl = URL.createObjectURL(this.selectedFile);
+      // Store it for cleanup later
+      this.objectUrls.push(objectUrl);
+      // Return a sanitized URL
+      return this.sanitizer.bypassSecurityTrustResourceUrl(objectUrl);
+    } catch (error) {
+      console.error('Error creating PDF object URL:', error);
+      return null;
+    }
   }
   
   removeFile(index: number): void {
@@ -182,11 +255,19 @@ export class DocumentAnalyzerComponent implements OnInit, OnDestroy {
   
   getFilePreviewUrl(): string {
     if (!this.selectedFile) {
+      console.error('No file selected for preview');
       return '';
     }
     
-    // Créer une URL pour l'aperçu du fichier
-    return URL.createObjectURL(this.selectedFile);
+    try {
+      // Créer une URL pour l'aperçu du fichier
+      const url = URL.createObjectURL(this.selectedFile);
+      console.log('Generated preview URL:', url);
+      return url;
+    } catch (error) {
+      console.error('Error creating object URL:', error);
+      return '';
+    }
   }
   
   getFilePreviewForCard(file: File): string {
@@ -195,9 +276,155 @@ export class DocumentAnalyzerComponent implements OnInit, OnDestroy {
   }
   
   selectFile(index: number): void {
+    console.log('DEBUG: Selecting file at index:', index);
     if (index >= 0 && index < this.selectedFiles.length) {
+      // Store the selected file
       this.selectedFile = this.selectedFiles[index];
+      console.log('DEBUG: Selected file:', this.selectedFile.name, 'Type:', this.selectedFile.type, 'Size:', this.selectedFile.size);
+      
+      // Clean up any previous object URLs to prevent memory leaks
+      this.cleanupObjectUrls();
+      
+      if (this.selectedFile) {
+        // Simple approach for image files
+        if (this.isImageFile(this.selectedFile.name)) {
+          console.log('DEBUG: File is an image, creating base64 preview');
+          // Use base64 encoding for images instead of object URLs
+          this.createBase64Preview(this.selectedFile);
+          
+          // Reset PDF source if not a PDF file
+          this.pdfSrc = undefined;
+        }
+        // Handle PDF preview if the selected file is a PDF
+        else if (this.selectedFile.type.includes('pdf')) {
+          console.log('DEBUG: File is PDF, preparing to load PDF preview');
+          // Reset image preview URL
+          this.imagePreviewUrl = '';
+          this.filePreviewUrl = '';
+          
+          // Reset PDF source first to ensure the UI updates
+          this.pdfSrc = undefined;
+          
+          // Then load the new PDF with a slight delay to ensure UI updates
+          setTimeout(() => {
+            if (this.selectedFile) {
+              console.log('DEBUG: Loading PDF preview');
+              this.loadPdfPreview(this.selectedFile);
+            }
+          }, 200);
+        } else {
+          console.log('DEBUG: File is neither PDF nor image, type:', this.selectedFile.type);
+          this.imagePreviewUrl = '';
+          this.filePreviewUrl = '';
+          this.pdfSrc = undefined;
+        }
+      } else {
+        console.error('DEBUG ERROR: Selected file is null after assignment');
+      }
+    } else {
+      console.error('DEBUG ERROR: Invalid file index:', index, 'Files length:', this.selectedFiles.length);
     }
+  }
+  
+  /**
+   * Creates a base64 preview for image files
+   */
+  private createBase64Preview(file: File): void {
+    console.log('DEBUG: Creating base64 preview for file:', file.name);
+    const reader = new FileReader();
+    
+    reader.onload = (e: any) => {
+      console.log('DEBUG: FileReader onload event fired for base64');
+      try {
+        // Get the base64 string
+        const base64String = e.target.result;
+        console.log('DEBUG: Base64 string created, length:', base64String.length);
+        
+        // Set the image preview URL to the base64 string
+        this.imagePreviewUrl = base64String;
+        console.log('DEBUG: Image preview URL set to base64 string');
+        
+        // Also set the SafeUrl for Angular binding
+        this.filePreviewUrl = this.sanitizer.bypassSecurityTrustUrl(base64String);
+        console.log('DEBUG: Safe URL created from base64');
+        
+        // Force change detection
+        this.cdr.detectChanges();
+      } catch (error) {
+        console.error('DEBUG ERROR: Error creating base64 preview:', error);
+        this.imagePreviewUrl = '';
+        this.filePreviewUrl = '';
+      }
+    };
+    
+    reader.onerror = (error) => {
+      console.error('DEBUG ERROR: FileReader error during base64 creation:', error);
+      this.imagePreviewUrl = '';
+      this.filePreviewUrl = '';
+    };
+    
+    // Read the file as a data URL (base64)
+    console.log('DEBUG: Starting to read file as data URL');
+    reader.readAsDataURL(file);
+    console.log('DEBUG: Read as data URL operation initiated');
+  }
+  
+  /**
+   * Cleans up any object URLs created to prevent memory leaks
+   */
+  private cleanupObjectUrls(): void {
+    this.objectUrls.forEach(url => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error('Error revoking object URL:', e);
+      }
+    });
+    this.objectUrls = [];
+  }
+  
+  /**
+   * Loads a PDF file for preview
+   * @param file The PDF file to load
+   */
+  private loadPdfPreview(file: File): void {
+    console.log('Loading PDF preview for:', file.name);
+    
+    // Use FileReader to read the file as an ArrayBuffer
+    const reader = new FileReader();
+    
+    reader.onload = (e: any) => {
+      try {
+        // Get the ArrayBuffer
+        const arrayBuffer = e.target.result;
+        console.log('PDF ArrayBuffer loaded, size:', arrayBuffer.byteLength);
+        
+        // Convert to Uint8Array which is compatible with pdf-viewer
+        const uint8Array = new Uint8Array(arrayBuffer);
+        console.log('PDF Uint8Array created, length:', uint8Array.length);
+        
+        // Set the PDF source to the Uint8Array
+        this.pdfSrc = uint8Array;
+        console.log('PDF source set to Uint8Array');
+        
+        // Force change detection to update the UI
+        this.cdr.detectChanges();
+      } catch (error) {
+        console.error('Error processing PDF data:', error);
+        this.pdfSrc = undefined;
+        this.showErrorToast('Erreur lors du traitement du PDF');
+      }
+    };
+    
+    reader.onerror = (error) => {
+      console.error('Error reading PDF file:', error);
+      this.pdfSrc = undefined;
+      this.showErrorToast('Erreur lors de la lecture du fichier PDF');
+    };
+    
+    // Read the file as an ArrayBuffer
+    console.log('Starting to read PDF as ArrayBuffer');
+    reader.readAsArrayBuffer(file);
   }
 
   analyzeDocument(): void {
@@ -276,6 +503,7 @@ export class DocumentAnalyzerComponent implements OnInit, OnDestroy {
   }
 
   private showInfoToast(message: string): void {
+    console.log(message)
     this.messageService.add({
       severity: 'info',
       summary: 'Information',
