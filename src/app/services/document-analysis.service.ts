@@ -17,7 +17,7 @@ export interface PredictionResult {
   providedIn: 'root'
 })
 export class DocumentAnalysisService {
-  private apiUrl = __config.API_URL;
+  private apiUrl = "http://localhost:8000";
   private progressSubject = new BehaviorSubject<number>(0);
   public progress$ = this.progressSubject.asObservable();
 

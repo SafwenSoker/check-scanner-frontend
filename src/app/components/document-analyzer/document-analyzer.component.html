@@ -9,31 +9,6 @@
           </div>
           <h1 class="app-title">Analyseur de Documents Bancaires</h1>
         </div>
-        <div class="upload-container">
-          <p-fileUpload
-            mode="advanced"
-            chooseLabel="Parcourir"
-            uploadLabel="Ajouter"
-            cancelLabel="Annuler"
-            chooseIcon="pi pi-plus"
-            uploadIcon="pi pi-upload"
-            cancelIcon="pi pi-times"
-            styleClass="modern-upload"
-            chooseStyleClass="p-button-primary"
-            cancelStyleClass="p-button-danger"
-            [multiple]="true"
-            [showUploadButton]="false"
-            [showCancelButton]="true"
-            [accept]="'.jpg,.jpeg,.png,.pdf'"
-            (select)="onFileSelect($event)"
-            (remove)="onFileRemove($event)">
-            <ng-template pTemplate="content">
-              <div class="upload-status" *ngIf="selectedFiles && selectedFiles.length > 0">
-                <p>{{selectedFiles.length}} fichier(s) sélectionné(s)</p>
-              </div>
-            </ng-template>
-          </p-fileUpload>
-        </div>
       </div>
     </div>
   </header>
